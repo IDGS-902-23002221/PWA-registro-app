@@ -1,0 +1,747 @@
+================================================================================
+ CONTEXTO DE TRABAJO — registro-app (Practicas P1 / Componentes PWA)
+================================================================================
+ Fecha de generacion: 2026-09-28
+ Proyecto: p1/reactP1/registro-app
+ Generado para: retomar el trabajo en cualquier sesion sin releer todo el codigo
+
+
+--------------------------------------------------------------------------------
+ 1. QUE ESTAMOS HACIENDO
+--------------------------------------------------------------------------------
+Asignatura: modulo de "invalidos" (Practicas 1, unidad de Componentes PWA).
+Docente: el profe entrego un proyecto base llamado "registro-app" como ejemplo
+         de referencia para que replicationmos su estilo de codigo.
+
+NUESTRA TAREA: trabajar SOBRE ese ejemplo y AGREGAR 3 COMPONENTES NUEVOS.
+Regla de oro acordada: todo lo que escribamos debe copiar el estilo, la
+estructura y las convenciones del codigo del profe. El profe evalua consistencia.
+
+TRABAJO SOLICITADO (3 componentes):
+  1. Lapiz de edicion en cada fila, a la IZQUIERDA del boton de eliminar
+  2. Ojito (ojo) que abre un POPUP con los datos del usuario, "ordenados de
+     otra forma" (distinta presentacion a la tabla)
+  3. Barra buscadora
+
+ADEMAS se agreed agregar validacion al eliminar y edicion (dialogo de confirmacion)
+porque es buena practica de UX, aunque no estaba en la lista original.
+
+
+--------------------------------------------------------------------------------
+ 2. ANALISIS TECNICO: LO QUE YA NOS PREGUNTAMOS Y RESPONDIMOS
+--------------------------------------------------------------------------------
+PREGUNTA DEL ALUMNO: "lo que te dije, puede ser un componente como tal?"
+
+RESPUESTA (importante para no confundir):
+  - Icono LAPIZ      -> NO es un componente. Es una ACCION dentro de una fila de
+                       TablaRegistros. Lo que SI es componente es el formulario
+                       de edicion que ese lapiz abre.
+  - Icono OJO + POPUP -> SI es un componente: DialogoDetalleUsuario.jsx
+  - BARRA BUSCADORA  -> SI es un componente: BuscadorRegistros.jsx
+
+  Conclusion: son 3 COMPONENTES NUEVOS + 1 boton extra en la tabla existente.
+  Ademas seprovee un 4to componente de apoyo (DialogoConfirmacion) para no
+  borrar registros por error.
+
+PATRON DE ARQUITECTURA QUE USA EL PROFE (a replicar):
+  - Un componente = una responsabilidad. Funciones que empiezan con minuscula
+    (FormularioRegistro, TablaRegistros, ModuloRegistros, Header, Footer).
+  - El componente PADRE (ModuloRegistros) es el UNICO que tiene el estado de la
+    lista de registros. Los hijos son "presentacionales": reciben datos por
+    props y avisan cambios invocando funciones que tambien llegan por props.
+  - Regla: "si un componente necesita saber de mas de un padre, subilo".
+  - Los componentes hijos usan SU PROPIO useState para lo que es interno
+    (lo que el usuario esta escribiendo en un input).
+  - MUI Material para toda la UI. Iconos de @mui/icons-material.
+
+REGLA DE ORO DE FLUJO DE DATOS:
+  El hijo NUNCA modifica el estado del padre directamente. El hijo llama a una
+  funcion que el padre le paso (onAgregar, onEliminar, onActualizar, onCancelar).
+  El padre es el dueno del estado. Esta es la arquitectura "unidirectional".
+
+
+--------------------------------------------------------------------------------
+ 3. STACK TECNOLOGICO
+--------------------------------------------------------------------------------
+  React 19.2.8  +  Vite 8.3.0  +  MUI 9.4.0  +  Emotion 11
+  Linter: oxlint (NO eslint)  ->  comando: npm run lint
+  Lenguaje: JavaScript con JSX (.jsx). NO hay TypeScript en este proyecto.
+
+  Dependencias relevantes (de package.json):
+    "@emotion/react", "@emotion/styled"     -> estilos internos de MUI
+    "@mui/icons-material"                    -> iconos (Delete, Edit, Visibility...)
+    "@mui/material"                          -> componentes visuales
+
+  ARQUITECTURA DE ARCHIVOS (nota: hay DOS carpetas registro-app, ver seccion 4):
+    p1/reactP1/registro-app/                       <-- NUESTRO (donde trabajamos)
+      index.html
+      vite.config.js
+      package.json
+      .oxlintrc.json
+      src/
+        main.jsx          punto de entrada (createRoot)
+        App.jsx           solo renderiza <ModuloRegistros />
+        App.css           (vacio)
+        index.css         (solo body { margin: 0 })
+        components/
+          Header.jsx             (del profe)
+          Footer.jsx             (del profe)
+          ModuloRegistros.jsx    (del profe)  <-- se va a modificar
+          FormularioRegistro.jsx (del profe)
+          TablaRegistros.jsx     (del profe)  <-- se va a modificar
+          FormularioEdicion.jsx  (NOSOTROS)   <-- recien creado, en revision
+      public/
+        favicon.svg, icons.svg
+    p1/reactP1/ComponentesPWA/registro-app/       <-- COPIA ORIGINAL DEL PROFE
+      (mismos archivos, pero en carpeta "Componentes" y con nombres singulares:
+       ModuloRegistro.jsx en vez de ModuloRegistros.jsx, TablaRegistro.jsx,
+       FormularioRegistro.jsx)
+
+
+--------------------------------------------------------------------------------
+ 4. CODIGO ORIGINAL DEL PROFE (referencia de estilo — NO MODIFICAR su logica)
+--------------------------------------------------------------------------------
+
+===== src/main.jsx =====
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from './App.jsx'
+
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
+
+===== src/App.jsx =====
+import ModuloRegistros from './components/ModuloRegistros';
+import './App.css';
+
+// App.jsx queda muy simple: solo renderiza el modulo
+function App() {
+  return <ModuloRegistros />;
+}
+
+export default App;
+
+===== src/components/ModuloRegistros.jsx =====
+import { useState } from 'react';
+import Container from '@mui/material/Container';
+import Header from './Header';
+import Footer from './Footer';
+import FormularioRegistro from './FormularioRegistro';
+import TablaRegistros from './TablaRegistros';
+
+
+function ModuloRegistros() {
+  const [registros, setRegistros] = useState([]);
+
+  const agregarRegistro = (nuevoRegistro) => {
+    setRegistros((registrosPrevios) => [...registrosPrevios, nuevoRegistro]);
+  };
+
+  const eliminarRegistro = (idAEliminar) => {
+    setRegistros((registrosPrevios) =>
+      registrosPrevios.filter((registro) => registro.id !== idAEliminar)
+    );
+  };
+
+  return (
+    <>
+      <Header titulo="Modulo de invalidos" totalRegistros={registros.length} />
+      <Container maxWidth="md">
+        <FormularioRegistro onAgregar={agregarRegistro} />
+        <TablaRegistros registros={registros} onEliminar={eliminarRegistro} />
+      </Container>
+      <Footer />
+    </>
+  );
+}
+
+export default ModuloRegistros;
+
+===== src/components/Header.jsx =====
+import AppBar from '@mui/material/AppBar';
+import Toolbar from '@mui/material/Toolbar';
+import Typography from '@mui/material/Typography';
+import AssignmentIcon from '@mui/icons-material/Assignment';
+
+function Header({ titulo, totalRegistros }) {
+  return (
+    <AppBar position="static" sx={{ mb: 3 }}>
+      <Toolbar>
+        <AssignmentIcon sx={{ mr: 1 }} />
+        <Typography variant="h6" component="h1" sx={{ flexGrow: 1 }}>
+          {`${titulo} — ${totalRegistros} registro(s)`}
+        </Typography>
+      </Toolbar>
+    </AppBar>
+  );
+}
+
+export default Header;
+
+===== src/components/Footer.jsx =====
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+
+function Footer() {
+  const anioActual = new Date().getFullYear();
+
+  return (
+    <Box
+      component="footer"
+      sx={{ mt: 4, py: 2, textAlign: 'center', borderTop: '1px solid #e0e0e0' }}
+    >
+      <Typography variant="body2" color="text.secondary">
+        {`Modulo de registros — © ${anioActual} — invalidos`}
+      </Typography>
+    </Box>
+  );
+}
+
+export default Footer;
+
+===== src/components/FormularioRegistro.jsx =====
+import { useState } from 'react';
+import Paper from '@mui/material/Paper';
+import Box from '@mui/material/Box';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import Typography from '@mui/material/Typography';
+import Alert from '@mui/material/Alert';
+
+
+function FormularioRegistro({ onAgregar }) {
+  const [nombre, setNombre] = useState('');
+  const [email, setEmail] = useState('');
+  const [edad, setEdad] = useState('');
+  const [error, setError] = useState('');
+
+  const limpiarFormulario = () => {
+    setNombre('');
+    setEmail('');
+    setEdad('');
+  };
+
+  const validarCampos = () => {
+
+    const campos = [
+      { valor: nombre, etiqueta: 'Nombre' },
+      { valor: email, etiqueta: 'Email' },
+      { valor: edad, etiqueta: 'Edad' },
+    ];
+
+    let mensaje = '';
+    campos.forEach((campo) => {
+      if (!campo.valor.trim()) {
+        mensaje = `El campo "${campo.etiqueta}" es obligatorio`;
+      }
+    });
+
+    return mensaje;
+  };
+
+  const manejarEnvio = (evento) => {
+    evento.preventDefault();
+
+    const mensajeError = validarCampos();
+    if (mensajeError) {
+      setError(mensajeError);
+      return;
+    }
+
+    const nuevoRegistro = {
+      id: `reg-${Date.now()}`,
+      nombre,
+      email,
+      edad,
+    };
+
+    onAgregar(nuevoRegistro);
+    setError('');
+    limpiarFormulario();
+  };
+
+  return (
+    <Paper sx={{ p: 3, mb: 3 }} elevation={2}>
+      <Typography variant="h6" sx={{ mb: 2 }}>
+        Nuevo Invalido
+      </Typography>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
+
+      <Box
+        component="form"
+        onSubmit={manejarEnvio}
+        sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}
+      >
+        <TextField
+          label="Nombre"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          size="small"
+        />
+        <TextField
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          size="small"
+        />
+        <TextField
+          label="Edad"
+          type="number"
+          value={edad}
+          onChange={(e) => setEdad(e.target.value)}
+          size="small"
+          sx={{ width: 100 }}
+        />
+        <Button type="submit" variant="contained">
+          Agregar
+        </Button>
+      </Box>
+    </Paper>
+  );
+}
+
+export default FormularioRegistro;
+
+===== src/components/TablaRegistros.jsx =====
+import Paper from '@mui/material/Paper';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import IconButton from '@mui/material/IconButton';
+import Typography from '@mui/material/Typography';
+import DeleteIcon from '@mui/icons-material/Delete';
+
+function TablaRegistros({ registros, onEliminar }) {
+
+  const filas = [];
+  registros.forEach((registro, indice) => {
+    filas.push(
+      <TableRow key={registro.id}>
+        <TableCell>{indice + 1}</TableCell>
+        <TableCell>{registro.nombre}</TableCell>
+        <TableCell>{registro.email}</TableCell>
+        <TableCell>{registro.edad}</TableCell>
+        <TableCell align="right">
+          <IconButton
+            size="small"
+            color="error"
+            onClick={() => onEliminar(registro.id)}
+            aria-label={`Eliminar registro de ${registro.nombre}`}
+          >
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </TableCell>
+      </TableRow>
+    );
+  });
+
+  return (
+    <TableContainer component={Paper} elevation={2}>
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell>#</TableCell>
+            <TableCell>Nombre</TableCell>
+            <TableCell>Email</TableCell>
+            <TableCell>Edad</TableCell>
+            <TableCell align="right">Acciones</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {filas.length > 0 ? (
+            filas
+          ) : (
+            <TableRow>
+              <TableCell colSpan={5}>
+                <Typography variant="body2" color="text.secondary" align="center">
+                  Aun no hay registros
+                </Typography>
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+}
+
+export default TablaRegistros;
+
+
+--------------------------------------------------------------------------------
+ 5. CONVENCIONES DE CODIGO DEL PROFE (checklist de estilo)
+--------------------------------------------------------------------------------
+FORMATO
+  [ ] Indentacion de 2 ESPACIOS (no 4, no tabs)
+  [ ] Comillas SIMPLES en JavaScript ('texto') y en atributos JSX label="texto"
+  [ ] Espacios DENTRO de las llaves: { valor, etiqueta }  NO  {valor, etiqueta}
+  [ ] Espacio despues de if:  if (condicion)   NO  if(condicion)
+  [ ] Punto y coma al final de cada sentencia y de cada import
+  [ ] Linea en blanco despues del bloque de imports
+  [ ] Linea en blanco despues de abrir la funcion (antes del primer useState)
+  [ ] Espacios en blanco entre bloques logicos (antes del return, etc.)
+  [ ] Llave de cierre de funcion interna terminada con }; (punto y coma)
+  [ ] LF (fin de linea Unix), no CRLF
+
+COMPONENTES
+  [ ] Nombre en PascalCase y SIEMPRE en mayuscula la inicial (FormularioEdicion,
+      NO formularioEdicion). Si empieza en minuscula, React lo interpreta como una
+      etiqueta HTML y renderiza NADA.
+  [ ] SIEMPRE terminar con: export default NombreComponente;
+  [ ] Un componente = una responsabilidad
+  [ ] Funciones auxiliares (validarCampos, manejarEnvio) DENTRO del componente,
+      con nombres en camelCase y verbo al inicio
+  [ ] Props SIEMPRE destructuradas en la firma: function Componente({ prop1, prop2 })
+
+ESTADO Y DATOS
+  [ ] El estado de la lista de registros vive SOLO en ModuloRegistros.jsx
+  [ ] Los hijos reciben callbacks con prefijo "on": onAgregar, onEliminar,
+      onActualizar, onCancelar, onBuscar
+  [ ] Nunca usar Math.random() para ids. El profe usa: reg-${Date.now()}
+  [ ] Para actualizar un objeto preservando campos: { ...objeto, campoNuevo: valor }
+
+UI / MUI
+  [ ] Paper con elevation={2} (NO sx={{ boxShadow }})
+  [ ] Contenedores: sx={{ p: 3, mb: 3 }} para formularios, sx={{ mb: 2 }} para titulos
+  [ ] Formularios: Box component="form" + onSubmit + sx={{ display:'flex',
+        flexWrap:'wrap', gap:2, alignItems:'center' }}
+  [ ] TextField con size="small" en formularios
+  [ ] Boton principal: type="submit" variant="contained"
+  [ ] Boton secundario: variant="outlined"
+  [ ] Errores: Alert severity="error" con sx={{ mb: 2 }}
+  [ ] Iconos dentro de IconButton con size="small" y color segun accion
+        (color="error" para eliminar, color="primary"/"info" para editar/ver)
+  [ ] SIEMPRA incluir aria-label="..." en IconButton (accesibilidad)
+
+
+--------------------------------------------------------------------------------
+ 6. LO QUE HICIMOS HASTA AHORA — FormularioEdicion.jsx (version actual)
+--------------------------------------------------------------------------------
+ESTADO DEL TRABAJO: el componente esta escrito y casi completo, pero tiene
+3 REGRESIONES que hay que corregir (ver seccion 7).
+
+--- src/components/FormularioEdicion.jsx (108 lineas, ESTADO ACTUAL) ---
+import { useState, useEffect } from 'react';
+import Paper from '@mui/material/Paper';
+import Box from '@mui/material/Box';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import Typography from '@mui/material/Typography';
+import Alert from '@mui/material/Alert';
+
+function FormularioEdicion({ registro, onActualizar, onCancelar }) {
+    const [nombre, setNombre] = useState('');
+    const [email, setEmail] = useState('');
+    const [edad, setEdad] = useState('');
+    const [idEditado, setIdEditado] = useState(registro.id);
+
+    if(registro.id !== idEditado){
+        setIdEditado(registro.id);
+        setNombre(registro.nombre);
+        setEmail(registro.email);
+        setEdad(registro.edad);
+    }
+
+    const validarCampos = () => {
+
+        const campos = [
+            { valor: nombre, etiqueta: 'Nombre' },
+            { valor: email, etiqueta: 'Email' },
+            { valor: edad, etiqueta: 'Edad' },
+        ];
+
+        let mensaje = '';
+        campos.forEach((campo) => {
+            if (!campo.valor.trim()) {
+                mensaje = `El campo ${campo.etiqueta} es obligatorio`;
+            }
+        });
+        return mensaje;
+    };
+
+    const manejarEnvio = (evento) => {
+        evento.preventDefault();
+
+        const mensajeError = validarCampos();
+        if (mensajeError) {
+            setError(mensajeError);
+            return;
+        }
+
+        const registroActualizado = {
+            ...registro,
+            nombre,
+            email,
+            edad,
+        };
+
+        onActualizar(registroActualizado);
+        setError('');
+    };
+
+    return (
+        <Paper sx={{ p: 3, mb: 3 }} elevation={2}>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+                Editar Invalido
+            </Typography>
+
+            {error && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    {error}
+                </Alert>
+            )}
+
+            <Box
+                component="form"
+                onSubmit={manejarEnvio}
+                sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}
+            >
+                <TextField
+                    label="Nombre"
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
+                    size="small"
+                />
+                <TextField
+                    label="Email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    size="small"
+                />
+                <TextField
+                    label="Edad"
+                    type="number"
+                    value={edad}
+                    onChange={(e) => setEdad(e.target.value)}
+                    size="small"
+                    sx={{ width: 100 }}
+                />
+                <Button type="submit" variant="contained">
+                    Guardar
+                </Button>
+                <Button variant={outlined} onClick={onCancelar}>
+                    Cancelar
+                </Button>
+            </Box>
+        </Paper>
+    );
+}
+
+export default FormularioEdicion;
+--- fin del archivo ---
+
+
+--------------------------------------------------------------------------------
+ 7. PENDIENTES / ERRORES A CORREGIR EN FormularioEdicion.jsx
+--------------------------------------------------------------------------------
+[ ] REGRESION 1 (BLOQUEANTE) — Se BORRO el estado `error`.
+    La linea 13 quedo como `idEditado`, pero `setError` (usada en manejarEnvio)
+    y `{error}` (usada en el JSX) ya no existen. ReferenceError en runtime.
+    SOLUCION: agregar la linea de vuelta, junto a las otras:
+        const [error, setError] = useState('');
+
+[ ] REGRESION 2 (BLOQUEANTE) — `variant={outlined}` sin comillas (linea del boton
+    Cancelar). En JSX, {} es una EXPRESION de JavaScript, no texto. {outlined}
+    busca una variable inexistente -> ReferenceError.
+    SOLUCION: variant="outlined"
+
+[ ] REGRESION 3 — `useEffect` sigue importado (linea 1) pero no se usa.
+    SOLUCION: quitarlo del import, o volver al patron useEffect (recomendado).
+
+[ ] BUG DE LOGICA — Con `useState('')` + ajuste por `idEditado`, los campos
+    aben VACIOS en el primer montaje (porque el `if` es false al inicio).
+    Solo se rellenan al cambiar a otro registro.
+    El patron de ajuste exige inicializar con la prop:
+        const [nombre, setNombre] = useState(registro.nombre);
+        const [email, setEmail] = useState(registro.email);
+        const [edad, setEdad] = useState(registro.edad);
+
+[ ] ESTILO — indentacion de 4 espacios (el profe usa 2). Sin lineas en blanco
+    entre imports y tras abrir la funcion. Sin linea en blanco antes del return.
+
+[ ] DECISION PENDIENTE — Volver al patron `useEffect` (recomendado) o dejar el
+    patron de ajuste durante el render. Ver analisis en seccion 8, punto 2.
+
+
+--------------------------------------------------------------------------------
+ 8. DECISIONES TECNICAS Y APRENDIZAJES (bitacora)
+--------------------------------------------------------------------------------
+1) PATRON: useState + useEffect para precargar props
+   El componente recibe `registro` y debe mostrar sus datos en los inputs.
+   Con solo useState('') los campos quedan vacios porque React solo usa el valor
+   inicial en el PRIMER render. Si el usuario edita un registro y despues
+   pulsa el lapiz de OTRO, React reutiliza el componente (misma posicion en el
+   arbol) y los campos conservan los datos del anterior -> BUG CLASICO.
+   Se resuelve sincronizando estado <-> props con useEffect y dependencia [registro].
+   El array de dependencias [registro] NO se debe borrar: es lo que le dice a
+   React "vuelve a ejecutar esto solo si registro cambio".
+
+2) PATRON DERIVADO (avanzado, opcional): "ajustar estado cuando cambia una prop"
+   Documentado por React. Evita el render extra (avisa el linter
+   react/set-state-in-effect, warning de Performance, NO un error).
+   Se implementa con un estado "sombra" (idEditado) que compara la identidad de
+   la prop, y ajusta los valores en el cuerpo del render.
+   REQUIERE inicializar los useState con el valor de la prop (no con '').
+   DECISION PENDIENTE: cual usar. Recomendacion: useEffect (simple y estandar).
+
+3) SPREAD DE OBJETOS: por que es obligatorio en manejarEnvio
+   El `id` (reg-${Date.now()}) se creo al agregar el registro y vive en el
+   objeto. Si al editar construimos { nombre, email, edad } SIN el spread,
+   el id se PIERDE. Consecuencias: el key de React queda undefined, el boton
+   eliminar llama onEliminar(undefined) y NO borra nunca. Ademas se perderia
+   cualquier otro campo futuro.
+   Patron correcto:
+       const registroActualizado = { ...registro, nombre, email, edad };
+   (El spread = "copiar todo lo anterior y encima pisar estos campos".)
+
+4) useEffect ES CONDICIONAL EN ESTE PROYECTO
+   a) useEffect(() => { setX(prop) }, [prop])  -> SI (sincronizar estado con props)
+   b) useEffect(() => { fetch(...) }, [])     -> SI ( APIs externas, timers,
+      suscripciones, event listeners). NO paraDerived state (useMemo), timers
+      de cuenta regresiva simples, ni props que solo cambian de color.
+
+5) ERROR #1 DEL ALUMNO (aprendido): nombre de componente en minuscula
+   `function formularioEdicion()` -> React lo toma como etiqueta HTML y no
+   renderiza nada. Los componentes SIEMPRE en mayuscula la inicial.
+
+6) ERROR #2 (aprendido): estado declarado a medias
+   Usar setError sin haber declarado [error, setError] -> ReferenceError.
+
+7) ERROR #3 (aprendido): error de copy-paste en setters simetricos
+   Escribir setNombre(registro.email) y setNombre(registro.edad) hace que el
+   ULTIMO setNombre gane, dejando Nombre con la edad y Email/Edad vacios.
+   REGLA: al copiar una linea cambiando una palabra, cambiar las DOS palabras
+   simetricas (el valor Y el setter).
+
+8) ERROR #4 (aprendido): {} en JSX no es texto
+   variant={outlined} -> JS.   variant="outlined" -> texto.
+
+9) ACERCION A props de MUI
+   e.target.value SIEMPRE es string, aunque el input sea type="number".
+   React no castea a numero. Por eso useState('') y setEdad('25') conviven bien,
+   y .trim() es seguro sobre la edad.
+
+10) BUG REAL DEL PROFE (buen apunte para la presentacion)
+    En validarCampos, el forEach SOBREESCRIBE `mensaje` en cada iteracion:
+        let mensaje = '';
+        campos.forEach((campo) => {
+            if (!campo.valor.trim()) {
+                mensaje = `El campo "${campo.etiqueta}" es obligatorio`;  // pisa
+            }
+        });
+    Si faltan Nombre y Edad, solo se ve el error del ULTIMO campo vacio.
+    Deberia ser: mensaje = mensaje || ...  (o accumulating, o break).
+    Copiamos el comportamiento del profe por consistencia, pero vale
+    mencionarlo en clase: demuestra que leimos el codigo a fondo.
+
+11) LINTER
+    Comando: npm run lint (usa oxlint, no eslint).
+    NOTA PRACTICA: oxlint esta escaneando node_modules (~48.000 archivos, ~60s).
+    Se arregla agregando "ignorePatterns": ["node_modules"] al .oxlintrc.json
+    -> baja a ~17ms. Mucho mas comodo para iterar.
+    Para revisar solo src:  npx oxlint src/
+    Extension de VSCode recomendada: Error Lens (muestra errores en la linea).
+
+
+--------------------------------------------------------------------------------
+ 9. HERRAMIENTAS / ENTORNO DE TRABAJO
+--------------------------------------------------------------------------------
+VSCode (extensiones sugeridas al alumno):
+  [ ] Error Lens (Alexander)         -> errores en la misma linea. Imprescindible
+  [ ] Auto Import (steoati)          -> autocompleta imports de librerias
+  [ ] Path Intellisense (Kohler)     -> autocompleta rutas relativas
+  [ ] Prettier                       -> formatea (configurar a 2 espacios y
+                                       comillas simples; por defecto usa dobles)
+  [ ] EditorConfig                   -> indentacion y fin de linea
+  [ ] npm Intellisense               -> autocompleta nombres de paquetes
+  [ ] ES7+ React Snippets            -> snippet "rafce" genera esqueleto de comp.
+
+Comandos utiles:
+  npm run dev      -> levanta el servidor de desarrollo (Vite, HMR)
+  npm run lint     -> oxlint sobre todo el proyecto
+  npx oxlint src/  -> oxlint solo sobre src (rapido)
+  npm run build    -> build de produccion
+
+Reglas de la carpeta de Context.txt:
+  - El archivo CONTEXTO.txt es un indice. Se actualiza al cerrar cada bloque.
+  - Los errores encontrados se anotan en la seccion correspondiente y se
+    tachan cuando se corrigen.
+
+
+--------------------------------------------------------------------------------
+ 10. MAPA DE TRABAJO (roadmap)
+================================================================================
+[x] Analisis inicial del proyecto y del ejemplo del profe
+[x] Decidir que si y que no es un componente (lapiz vs ojito vs buscador)
+[x] Crear FormularioEdicion.jsx — estructura, estado, useEffect, submit, JSX
+[ ] Corregir las 3 regresiones + bug de logica de FormularioEdicion.jsx (ver 7)
+[ ] Aplicar formato del profe (2 espacios, comillas, lineas en blanco)
+
+--- Bloque B: logica en el padre (ModuloRegistros.jsx) ---
+[ ] Importar FormularioEdicion
+[ ] Estado: const [editandoId, setEditandoId] = useState(null)
+[ ] Handler: const actualizarRegistro = (registroActualizado) => {
+        setRegistros((prev) => prev.map((r) => r.id === registroActualizado.id ? registroActualizado : r));
+      };
+    (MAP, no FILTER: aqui se REEMPLAZA, no se borra)
+[ ] Render condicional: {editandoId ? (
+        <FormularioEdicion registro={...} onActualizar={actualizarRegistro} onCancelar={() => setEditandoId(null)} />
+      ) : <FormularioRegistro onAgregar={agregarRegistro} />}
+    (Decidir: se reemplaza el formulario de alta, o se muestra encima?)
+[ ] Pasar callbacks nuevos a la tabla: onEditar, onVerDetalle
+
+--- Bloque C: botones en la tabla (TablaRegistros.jsx) ---
+[ ] Importar: EditIcon (lapiz) y VisibilityIcon (ojo) de @mui/icons-material
+[ ] Agregar 2 IconButton MAS a la celda "Acciones", a la IZQUIERDA del DeleteIcon:
+        <IconButton onClick={() => onEditar(registro.id)} aria-label="Editar ...">
+          <EditIcon fontSize="small" />
+        </IconButton>
+        <IconButton onClick={() => onVerDetalle(registro)} aria-label="Ver ...">
+          <VisibilityIcon fontSize="small" />
+        </IconButton>
+    (el de borrar se mantiene al final, con color="error")
+[ ] Padding: los 3 botones se crowd -> usar Stack direction="row" o gap en la celda
+
+--- Bloque D: los 2 componentes que faltan ---
+[ ] DialogoDetalleUsuario.jsx  (popup del ojo)
+    - Props: registro, abierto, onCerrar
+    - MUI: Dialog, DialogTitle, DialogContent, DialogActions
+    - "Ordenado de otra forma" a la tabla -> usar Stack/Grid o una lista
+      vertical con etiqueta + valor, en vez de columnas horizontales
+    - open={abierto} onClose={onCerrar}
+
+[ ] BuscadorRegistros.jsx  (barra buscadora)
+    - Props: valor, onBuscar  (o solo onBuscar)
+    - MUI: TextField size="small" + icono Search
+    - Estado de filtro en ModuloRegistros, NO en el buscador:
+        const registrosFiltrados = registros.filter((r) =>
+          r.nombre.toLowerCase().includes(filtro.toLowerCase()));
+    - Se pasa registrosFiltrados a la tabla (el buscador no toca el estado real)
+
+[ ] (Opcional) DialogoConfirmacion.jsx — confirmar antes de eliminar/guardar
+
+--- Bloque E: cierre y calidad ---
+[ ] npm run lint -> 0 errores, 0 warnings
+[ ] npm run build -> compila sin errores
+[ ] npm run dev -> probar en el navegador el flujo completo:
+      agregar -> ver detalle -> editar -> guardar -> buscar -> eliminar -> confirmar
+[ ] Comparar visualmente contra el ejemplo del profe (lateral)
+
+
+================================================================================
+ FIN DEL CONTEXTO
+================================================================================
